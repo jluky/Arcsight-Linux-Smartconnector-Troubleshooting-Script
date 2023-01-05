@@ -1,31 +1,15 @@
 #!/bin/bash
 
-# Check if the connector is running
-if ! ps aux | grep '[a]rcsight' > /dev/null
+# Check if the connector service is running
+if ! systemctl is-active arcsight > /dev/null
 then
-    # Connector is not running, try to start it
-    if [ -f /etc/init.d/arcsight ]
+    # Connector service is not running, try to start it
+    if ! systemctl start arcsight > /dev/null
     then
-        # Start script exists, try to start connector
-        if ! /etc/init.d/arcsight start > /dev/null
-        then
-            # There was an error starting the connector
-            echo "Error starting ArcSight connector"
-            exit 1
-        fi
-    else
-        # Start script does not exist
-        echo "ArcSight start script not found"
+        # There was an error starting the connector service
+        echo "Error starting ArcSight connector service"
         exit 1
     fi
-fi
-
-# Check if the connector process is running
-if ! ps aux | grep '[a]rcsight' > /dev/null
-then
-    # Connector process is not running, even though start script ran successfully
-    echo "Error: ArcSight connector process not found"
-    exit 1
 fi
 
 # Check the connector log file for errors
@@ -52,14 +36,6 @@ else
     exit 1
 fi
 
-# Check connector log file for parsing issues
-if grep -i "parsing" /opt/arcsight/current/logs/agent.log > /dev/null
-then
-    # Parsing errors found in log file
-    echo "Parsing errors found in connector log file"
-    exit 1
-fi
-
 # Check connector log file for received and forwarded events
 received_count=`grep -i "received" /opt/arcsight/current/logs/agent.log | wc -l`
 forwarded_count=`grep -i "forwarded" /opt/arcsight/current/logs/agent.log | wc -l`
@@ -70,9 +46,23 @@ then
     exit 1
 fi
 
-# Check connector location disk usage
-location_disk_usage=$(df -h /opt/arcsight/current/user/agent/location | awk 'FNR == 2 {print $5}')
-if [ ${location_disk_usage%?} -ge 95 ]
+# Check connector CPU usage
+cpu_usage=$(ps -o %cpu -p $(pgrep arcsight) | tail -n +2)
+if [ "$cpu_usage" -gt 80 ]
 then
-    # Connector location disk usage is 95% or higher
-    echo "Connector location disk is up to 95%"
+    # Connector CPU usage is higher than 80%
+    echo "Connector CPU usage is higher than 80%"
+    exit 1
+fi
+
+# Check connector disk usage
+disk_usage=$(df -h /opt/arcsight/current | tail -n +2 | awk '{print $5}' | tr -d '%')
+if [ "$disk_usage" -gt 80 ]
+then
+    # Connector disk usage is higher than 80%
+    echo "Connector disk usage is higher than 80%"
+    exit 1
+fi
+
+# All checks passed
+exit 0
