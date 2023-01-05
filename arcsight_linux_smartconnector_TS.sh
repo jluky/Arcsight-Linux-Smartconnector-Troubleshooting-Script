@@ -75,4 +75,4 @@ location_disk_usage=$(df -h /opt/arcsight/current/user/agent/location | awk 'FNR
 if [ ${location_disk_usage%?} -ge 95 ]
 then
     # Connector location disk usage is 95% or higher
-    echo "Connector location disk
+    echo "Connector location disk is up to 95%"
